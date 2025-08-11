@@ -1,8 +1,11 @@
 const jwt = require("jsonwebtoken");
+const User = require("../models/userModel");
 
 
 const authMiddleware = async (req , res, next) =>{
     const { authorization } = req.headers;
+
+    // console.log(authorization);
 
     const token = authorization.split(" ")[1];
 
@@ -14,10 +17,22 @@ const authMiddleware = async (req , res, next) =>{
         })
     }
 
-    const { _id} = userData.userId;
-    console.log(_id);
-    
+    const { _id} = userData.user;
+    // console.log(_id);
 
+    const user = await User.find({_id});
+    // console.log(user);
+
+    if(user.length ==0){
+        return res.status(401).json({
+            message:"Unauthorized"
+        })
+    }
+
+    req.user = user;
+
+    
+    
 
     next();
 }
