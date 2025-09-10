@@ -1,52 +1,83 @@
 import { ApolloServer } from '@apollo/server';
 import { startStandaloneServer } from '@apollo/server/standalone';
-// A schema is a collection of type definitions (hence "typeDefs")
-// that together define the "shape" of queries that are executed against
-// your data.
+// Schema
 const typeDefs = `#graphql
-  # Comments in GraphQL strings (such as this one) start with the hash (#) symbol.
-
-  # This "Book" type defines the queryable fields for every book in our data source.
   type Book {
-    title: String
-    author: String
+    id: ID!
+    title: String!
+    author: Author!
   }
 
-  # The "Query" type is special: it lists all of the available queries that
-  # clients can execute, along with the return type for each. In this
-  # case, the "books" query returns an array of zero or more Books (defined above).
+  type Author {
+    id: ID!
+    name: String!
+    books: [Book!]!
+  }
+
   type Query {
-    books: [Book]
+    books: [Book!]!
+    authors: [Author!]!
+  }
+
+  type Mutation {
+    addAuthor(name: String!): Author!
+    addBook(title: String!, authorId: ID!): Book!
   }
 `;
-const books = [
-    {
-        title: 'The Awakening',
-        author: 'Kate Chopin',
-    },
-    {
-        title: 'City of Glass',
-        author: 'Paul Auster',
-    },
-];
-// Resolvers define how to fetch the types defined in your schema.
-// This resolver retrieves books from the "books" array above.
+// In-memory data
+const data = {
+    authors: [
+        { id: "1", name: "Kate Chopin" },
+        { id: "2", name: "Paul Auster" }
+    ],
+    books: [
+        { id: "101", title: "The Awakening", authorId: "1" },
+        { id: "102", title: "City of Glass", authorId: "2" },
+        { id: "103", title: "Another Book by Paul", authorId: "2" }
+    ]
+};
+// Resolvers
 const resolvers = {
     Query: {
-        books: () => books,
+        books: () => data.books,
+        authors: () => data.authors,
     },
+    Book: {
+        author: (parent) => data.authors.find(author => author.id === parent.authorId)
+    },
+    Author: {
+        books: (parent) => data.books.filter(book => book.authorId === parent.id)
+    },
+    Mutation: {
+        addAuthor: (_, { name }) => {
+            const newAuthor = {
+                id: (data.authors.length + 1).toString(),
+                name
+            };
+            data.authors.push(newAuthor);
+            return newAuthor;
+        },
+        addBook: (_, { title, authorId }) => {
+            const authorExists = data.authors.some(author => author.id === authorId);
+            if (!authorExists) {
+                throw new Error(`Author with id ${authorId} not found`);
+            }
+            const newBook = {
+                id: (data.books.length + 101).toString(),
+                title,
+                authorId
+            };
+            data.books.push(newBook);
+            return newBook;
+        }
+    }
 };
-// The ApolloServer constructor requires two parameters: your schema
-// definition and your set of resolvers.
+// Server
 const server = new ApolloServer({
     typeDefs,
     resolvers,
 });
-// Passing an ApolloServer instance to the `startStandaloneServer` function:
-//  1. creates an Express app
-//  2. installs your ApolloServer instance as middleware
-//  3. prepares your app to handle incoming requests
 const { url } = await startStandaloneServer(server, {
     listen: { port: 4000 },
 });
-console.log(`🚀  Server ready at: ${url}`);
+console.log(`🚀 Server ready at: ${url}`);
